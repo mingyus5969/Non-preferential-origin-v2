@@ -1,0 +1,1 @@
+const fs=require('fs');const html=fs.readFileSync('index.html','utf8');const match=html.match(/const ORIGIN_CASES = (\[[\s\S]*?\]);/);if(match){let ObjectList=JSON.parse(match[1]);console.log(ObjectList.length); ObjectList.forEach(o => console.log(o.id)); }else{console.log('not found');}

@@ -1,0 +1,6 @@
+{
+  "name": "비특혜 원산지 판정 가이드",
+  "description": "대외무역법에 따른 비특혜 원산지 판정 기준 및 소관 관할 기관 안내 포털",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

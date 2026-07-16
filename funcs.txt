@@ -1,0 +1,17 @@
+let currentLaw = null;
+
+function renderLaws() {
+  const grid = document.getElementById('laws-grid');
+  if (!grid) return;
+  grid.innerHTML = lawsData.map((law, idx) => `
+    <button type="button" onclick="openLawModal('${law.id}')" class="bg-white rounded-[20px] p-6 text-left border border-slate-200 shadow-sm hover:border-brand-cyan hover:shadow-md transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan relative overflow-hidden" aria-label="${law.title} 상세 보기 (팝업)">
+      <div class="absolute right-0 top-0 w-24 h-24 bg-gradient-to-br from-brand-cyan/5 to-transparent rounded-bl-full pointer-events-none transition-transform group-hover:scale-110"></div>
+      <i class="fa-solid ${law.icon} text-brand-cyan text-[32px] mb-4" aria-hidden="true"></i>
+      <h3 class="text-[18px] sm:text-[20px] font-bold text-gray-900 mb-2">${law.title}</h3>
+      <p class="text-gray-600 text-[14px] leading-relaxed">${law.desc}</p>
+      <div class="mt-4 pt-4 border-t border-slate-100 flex items-center text-brand-cyan font-bold text-[13px] group-hover:translate-x-1 transition-transform">
+        <span>관련 법령 보기</span> <i class="fa-solid fa-arrow-right ml-2" aria-hidden="true"></i>
+      </div>
+    </button>
+  `).join('');
+}
