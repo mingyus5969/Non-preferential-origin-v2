@@ -2529,17 +2529,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if(typeof initKeyboard === 'function') initKeyboard();
     
     
-    let totalVisits = 0;
-    fetch('https://api.counterapi.dev/v1/non-preferential-origin-portal/visits/up')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.count !== undefined) {
-          totalVisits = data.count;
-        }
-      })
-      .catch(() => {
-        
-      });
+    let totalVisits = parseInt(localStorage.getItem('np_origin_visits') || '0');
+    totalVisits++;
+    localStorage.setItem('np_origin_visits', totalVisits);
 
     const secretTrigger = document.getElementById('secret-trigger');
     const statTotal = document.getElementById('stat-total');
