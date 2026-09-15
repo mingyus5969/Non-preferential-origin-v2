@@ -2529,9 +2529,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if(typeof initKeyboard === 'function') initKeyboard();
     
     
-    let totalVisits = parseInt(localStorage.getItem('np_origin_visits') || '0');
-    totalVisits++;
-    localStorage.setItem('np_origin_visits', totalVisits);
+    let totalVisits = 0;
+    fetch('https://abacus.jasoncameron.dev/hit/non-preferential-origin-portal/visits')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.value !== undefined) {
+          totalVisits = data.value;
+        }
+      })
+      .catch(() => {
+        let localVisits = parseInt(localStorage.getItem('np_origin_visits') || '0');
+        localVisits++;
+        localStorage.setItem('np_origin_visits', localVisits);
+        totalVisits = localVisits;
+      });
 
     const secretTrigger = document.getElementById('secret-trigger');
     const statTotal = document.getElementById('stat-total');
