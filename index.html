@@ -2529,23 +2529,65 @@ document.addEventListener('DOMContentLoaded', () => {
     if(typeof initKeyboard === 'function') initKeyboard();
     
     
-    let totalVisits = 0;
-    fetch('https://abacus.jasoncameron.dev/hit/non-preferential-origin-portal/visits')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.value !== undefined) {
-          totalVisits = data.value;
-        }
-      })
-      .catch(() => {
-        let localVisits = parseInt(localStorage.getItem('np_origin_visits') || '0');
-        localVisits++;
-        localStorage.setItem('np_origin_visits', localVisits);
-        totalVisits = localVisits;
-      });
-
+    let totalVisits = null;
+    let isFetchingVisits = false;
     const secretTrigger = document.getElementById('secret-trigger');
     const statTotal = document.getElementById('stat-total');
+
+    const updateStatDisplay = () => {
+      if (!statTotal || statTotal.classList.contains('hidden')) return;
+      if (totalVisits !== null) {
+        statTotal.textContent = `(누적 방문자: ${totalVisits.toLocaleString()}명)`;
+      } else if (isFetchingVisits) {
+        statTotal.textContent = `(누적 방문자: 조회 중...)`;
+      } else {
+        statTotal.textContent = `(누적 방문자: 확인 불가)`;
+      }
+    };
+
+    const loadVisits = (mode = 'hit') => {
+      if (isFetchingVisits) return;
+      isFetchingVisits = true;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      fetch(`https://abacus.jasoncameron.dev/${mode}/non-preferential-origin-portal/visits`, {
+        signal: controller.signal,
+        cache: 'no-store'
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          if (data && typeof data.value === 'number') {
+            totalVisits = data.value;
+          } else {
+            throw new Error('Invalid counter response');
+          }
+        })
+        .catch(() => {
+          try {
+            let localVisits = parseInt(localStorage.getItem('np_origin_visits') || '0', 10);
+            if (isNaN(localVisits)) localVisits = 0;
+            if (mode === 'hit' || localVisits === 0) {
+              localVisits++;
+              localStorage.setItem('np_origin_visits', String(localVisits));
+            }
+            totalVisits = localVisits;
+          } catch (e) {
+            totalVisits = 1;
+          }
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+          isFetchingVisits = false;
+          updateStatDisplay();
+        });
+    };
+
+    loadVisits('hit');
+
     let clickCount = 0;
     let clickTimer;
     if(secretTrigger) {
@@ -2553,10 +2595,13 @@ document.addEventListener('DOMContentLoaded', () => {
         clickCount++;
         if(clickCount >= 5) {
           if (statTotal) {
-            statTotal.textContent = `(누적 방문자: ${totalVisits}명)`;
             statTotal.classList.remove('hidden');
+            updateStatDisplay();
+            if (totalVisits === null && !isFetchingVisits) {
+              loadVisits('get');
+            }
           } else {
-            alert(`현재까지 누적 방문자 수: ${totalVisits}명`);
+            alert(`현재까지 누적 방문자 수: ${totalVisits !== null ? totalVisits.toLocaleString() : '조회 중'}명`);
           }
           clickCount = 0;
         }
