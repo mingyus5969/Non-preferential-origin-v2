@@ -2530,6 +2530,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     
     let totalVisits = null;
+    let visitSource = null; // 'server' | 'cached' | 'local'
     let isFetchingVisits = false;
     const secretTrigger = document.getElementById('secret-trigger');
     const statTotal = document.getElementById('stat-total');
@@ -2537,7 +2538,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateStatDisplay = () => {
       if (!statTotal || statTotal.classList.contains('hidden')) return;
       if (totalVisits !== null) {
-        statTotal.textContent = `(누적 방문자: ${totalVisits.toLocaleString()}명)`;
+        if (visitSource === 'server') {
+          statTotal.textContent = `(누적 방문자: ${totalVisits.toLocaleString()}명)`;
+        } else if (visitSource === 'cached') {
+          statTotal.textContent = `(누적 방문자: ${totalVisits.toLocaleString()}명 · 최근 기준)`;
+        } else {
+          statTotal.textContent = `(이 기기 접속: ${totalVisits.toLocaleString()}명 · 외부 통계 차단/지연)`;
+        }
       } else if (isFetchingVisits) {
         statTotal.textContent = `(누적 방문자: 조회 중...)`;
       } else {
@@ -2545,29 +2552,60 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    const loadVisits = (mode = 'hit') => {
+    const fetchCounterJson = async (url, timeoutMs) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok || !contentType.includes('application/json')) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (!data || typeof data.value !== 'number') {
+          throw new Error('Invalid counter response');
+        }
+        return data.value;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    const loadVisits = async (mode = 'hit') => {
       if (isFetchingVisits) return;
       isFetchingVisits = true;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-      fetch(`https://abacus.jasoncameron.dev/${mode}/non-preferential-origin-portal/visits`, {
-        signal: controller.signal,
-        cache: 'no-store'
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          if (data && typeof data.value === 'number') {
-            totalVisits = data.value;
-          } else {
-            throw new Error('Invalid counter response');
-          }
-        })
-        .catch(() => {
+      try {
+        const endpoints = [];
+        if (location.protocol === 'http:' || location.protocol === 'https:') {
+          endpoints.push({ url: `/api/visits/${mode}/non-preferential-origin-portal/visits`, timeout: 15000 });
+        }
+        endpoints.push({ url: `https://abacus.jasoncameron.dev/${mode}/non-preferential-origin-portal/visits`, timeout: 15000 });
+
+        let resolvedValue = null;
+        for (const ep of endpoints) {
           try {
+            resolvedValue = await fetchCounterJson(ep.url, ep.timeout);
+            break;
+          } catch (e) {}
+        }
+
+        if (resolvedValue !== null) {
+          totalVisits = resolvedValue;
+          visitSource = 'server';
+          try {
+            localStorage.setItem('np_origin_server_visits', String(resolvedValue));
+          } catch (e) {}
+        } else {
+          throw new Error('All counter endpoints failed');
+        }
+      } catch (e) {
+        try {
+          const cachedServer = parseInt(localStorage.getItem('np_origin_server_visits') || '0', 10);
+          if (!isNaN(cachedServer) && cachedServer > 0) {
+            totalVisits = cachedServer;
+            visitSource = 'cached';
+          } else {
             let localVisits = parseInt(localStorage.getItem('np_origin_visits') || '0', 10);
             if (isNaN(localVisits)) localVisits = 0;
             if (mode === 'hit' || localVisits === 0) {
@@ -2575,15 +2613,16 @@ document.addEventListener('DOMContentLoaded', () => {
               localStorage.setItem('np_origin_visits', String(localVisits));
             }
             totalVisits = localVisits;
-          } catch (e) {
-            totalVisits = 1;
+            visitSource = 'local';
           }
-        })
-        .finally(() => {
-          clearTimeout(timeoutId);
-          isFetchingVisits = false;
-          updateStatDisplay();
-        });
+        } catch (err) {
+          totalVisits = 1;
+          visitSource = 'local';
+        }
+      } finally {
+        isFetchingVisits = false;
+        updateStatDisplay();
+      }
     };
 
     loadVisits('hit');
@@ -2597,7 +2636,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (statTotal) {
             statTotal.classList.remove('hidden');
             updateStatDisplay();
-            if (totalVisits === null && !isFetchingVisits) {
+            if (visitSource !== 'server' && !isFetchingVisits) {
               loadVisits('get');
             }
           } else {
